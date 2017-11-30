@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<title>Troubled Tanks</title>
+	<style>
+		body {
+			margin: 0px;
+			background-color: #c1ebff;
+			font-family: Helvetica, sans-serif;
+		}
+	</style>
+
+	<script type="text/javascript">
+
+		///Global variables
+
+		timerID = 0;            ///The timer
+
+		startTime = new Date(); ///When did the game start?
+
+		tanks = new Array();	///A list of the tanks
+		particles = new Array();	///A list of the particles. These don't affect game play but are for aesthetics only.
+		bullets = new Array(); ///A list of the bullets
+		obstacles = new Array(); ///A list of the obstacles
+
+
+		isGameOver = false;	///Is the game over
+
+		playerOneScore = 0;
+		playerTwoScore = 0;
+
+		TANK_RADIUS = 20; ///How wide is the tank
+		TURRET_LENGTH = 30; ///How long is the tank turretX
+		TANK_MAX_SPEED = 3; ///How fast can the tank go?
+		TANK_SLOW_DOWN = .05; ///How much does the tank slow down if it's not accelerating?
+		TANK_ACCELERATION = 2; ///How fast does the tank speed up if we push the acceleration key?
+		TANK_HEALTH = 1;
+		TANK_ROTATION = .1; ///How fast can a tank turn?
+		TANK_FRAMES_BETWEEN_SHOTS = 15;
+
+		COUNT_OBSTACLES = 20;
+		OBSTACLE_RADIUS = 5;
+
+		BULLET_SPEED = 15;
+
+		PARTICLE_SPEED = 7;
+
+		/*LEFT_ARROW_KEY = 72; //h
+		UP_ARROW_KEY = 67; //c
+		RIGHT_ARROW_KEY = 78; //n
+		DOWN_ARROW_KEY = 84; //t*/
+
+		LEFT_ARROW_KEY = 74;
+		UP_ARROW_KEY = 73;
+		RIGHT_ARROW_KEY = 76
+		DOWN_ARROW_KEY = 75;
+
+		NUM_1_KEY = 49;
+		NUM_2_KEY = 50;
+		NUM_3_KEY = 51;
+		NUM_4_KEY = 52;
+
+		// Keyboard setting. From http://codepen.io/pboest/pen/qChba
+
+		var keys = [];
+
+		function keyDownListener(e) {
+			keys[e.keyCode] = true;
+		}
+
+		function keyUpListener(e) {
+			keys[e.keyCode] = false;
+		}
+
+		///---------------------Classes
+
+		///A point class to store two doubles
+		function Point(x, y) {
+			this.x = x;
+			this.y = y;
+		}
+
+		///A class to store tank data
+		function Tank(x, y, angle) {
+
+			this.location = new Point(x, y);
+			this.angle = angle;
+			this.speed = 0;
+			this.health = TANK_HEALTH;
+			this.framesSinceLastShot = 0;
+		}
+
+		///A class to store aesthetic data
+		function Particle(x, y, angle, speed) {
+			this.startTime = new Date();
+			this.location = new Point(x, y);
+			this.angle = angle;
+			this.speed = speed;
+		}
+
+		///A class to store bullet data
+		function Bullet(x, y, angle, speed) {
+			this.location = new Point(x, y);
+			this.angle = angle;
+			this.speed = speed
+		}
+
+		//A class to store obstacle data
+		function Obstacle(x, y) {
+			this.location = new Point(x, y);
+			this.radius = OBSTACLE_RADIUS;
+		}
+
+		///-------------------------Methods
+
+		///This gets called once when the page is completetly loaded.
+		///Think main()
+		function initialBoot() {
+
+			tanks.push(new Tank(25, 25, 0)); ///Add the first tank looking right
+			tanks.push(new Tank(615, 455, Math.PI)); ///Add the second tank looking left
+
+			///Randomly create obstacles
+			for (var i = 0; i < COUNT_OBSTACLES; i++) {
+				obstacles.push(new Obstacle(Math.random() * 440 + 100, Math.random() * 280 + 100));
+
+			}
+
+			///Update the model
+			update();
+
+			///Start a timer
+			timerID = setTimeout(tick, 33);    								///Initialize the timer
+			startTimeMilliseconds = startTime.getTime();     	///Get the start time in milliseconds
+		}
+
+		///This gets called evertime the timer ticks
+		function tick() {
+
+			///Respond differently based on the game state
+			if (!isGameOver) {
+				timerID = setTimeout(tick, 33);    ///Restart the timer
+
+				var currentTime = new Date();       ///Get the current time
+				var now = currentTime.getTime();    ///Get the current time in milliseconds
+
+				var f = Math.floor((now - startTimeMilliseconds) / 1000);   ///Figure out how many full seconds have elapsed
+
+
+				//Update the status text
+				document.getElementById("TextUpdate").innerText =
+					"Seconds Alive: " + (f) +
+					" seconds. Score Player 1 " +
+					playerOneScore + ", Score Player 2 " +
+					playerTwoScore;   ///Update the elapsed time
+
+				//Update the global model
+				update();
+
+				//Check to see if after the end of the update, there are still living tanks
+				if (tanks[0].health <= 0 || tanks[1].health <= 0) {
+					isGameOver = true;
+					if (tanks[0].health <= 0)
+						alert("Player 2 (Blue) won");
+					else
+						alert("Player 1 (Green) won");
+				}
+			}
+			else
+				drawCanvas();
+		}
+
+		//Helper function for distance
+		function distance(one, two) {
+			return Math.sqrt((one.x - two.x) * (one.x - two.x) + (one.y - two.y) * (one.y - two.y));
+		}
+
+		///This gets called whenever the window size changes and the 
+		///canvas neends to adjust.
+		///This also adjusts the content pane
+		function update() {
+
+			///Make sure everything is the right size
+			canvas = document.getElementById("canv");   ///Get the canvas object
+			canvas.width = 640;
+			canvas.height = 480;
+
+			//Particles that will be kept alive
+			keptParticles = new Array();
+
+			///Updat the particles
+			for (var i = 0; i < particles.length; i++) {
+				var particle = particles[i];
+
+				//Updatet the particles location
+				particle.location.x += Math.cos(particle.angle) * particle.speed;
+				particle.location.y += Math.sin(particle.angle) * particle.speed;
+
+				//Check to see if the particle should be preserved. 
+				var explosionLifetime = (new Date().getTime() - particle.startTime) / 1000;
+				if (explosionLifetime < .5)
+					keptParticles.push(particle);
+
+			}
+
+			particles = keptParticles;
+
+			//Bullets we should keep tracking
+			keptBullets = new Array();
+
+			//Loop over the bullets
+			for (var i = 0; i < bullets.length; i++) {
+				var bullet = bullets[i];
+
+				//Update the bullet's location using basic trig
+				bullet.location.x += Math.cos(bullet.angle) * bullet.speed;
+				bullet.location.y += Math.sin(bullet.angle) * bullet.speed;
+
+				//Drop bullet becomes true if the bullet needs to be removed.
+				var dropBullet = false;
+
+				///Check if the bullet is out of bounds
+				if (bullet.location.x < 0 || bullet.location.x > canvas.width || bullet.location.y < 0 || bullet.location.y > canvas.height) {
+					dropBullet = true;
+				}
+
+				///Check to see if it hit the first tank.
+				if (distance(bullet.location, tanks[0].location) < TANK_RADIUS) {
+					dropBullet = true;
+					tanks[0].health--;
+				}
+
+				///Check to see if it hit the second tank
+				if (distance(bullet.location, tanks[1].location) < TANK_RADIUS) {
+					dropBullet = true;
+					tanks[1].health--;
+				}
+
+				///Check to see if it hit any of the obstacles
+				for (var j = 0; j < obstacles.length; j++) {
+					if (distance(bullet.location, obstacles[j].location) < OBSTACLE_RADIUS)
+						dropBullet = true;
+				}
+
+				///If it wasn't destroyed, keep it
+				if (!dropBullet) {
+					keptBullets.push(bullet);
+				}
+				///Otherwise, create an aesthetic explosion particles
+				else {
+					for (var k = 0; k < 10; k++) {
+						particles.push(new Particle(bullet.location.x, bullet.location.y, Math.random() * Math.PI * 2, PARTICLE_SPEED * Math.random()));
+					}
+				}
+
+			}
+
+			bullets = keptBullets;
+
+
+			///Check for user input
+			if (keys[UP_ARROW_KEY]) {
+				tanks[0].speed += TANK_ACCELERATION;
+			}
+			if (keys[LEFT_ARROW_KEY]) {
+				tanks[0].angle -= TANK_ROTATION;
+			}
+			if (keys[RIGHT_ARROW_KEY]) {
+				tanks[0].angle += TANK_ROTATION;
+			}
+			if (keys[DOWN_ARROW_KEY]) {
+				///The user wants to fire. See if it's been long enough
+				if (tanks[0].framesSinceLastShot == 0) {
+					bullets.push(new Bullet(tanks[0].location.x + Math.cos(tanks[0].angle) * TANK_RADIUS * 2, tanks[0].location.y + Math.sin(tanks[0].angle) * TANK_RADIUS * 2, tanks[0].angle, BULLET_SPEED));
+					tanks[0].framesSinceLastShot = TANK_FRAMES_BETWEEN_SHOTS;
+
+					///Create aesthetic explosion particles
+					for (var k = 0; k < 5; k++) {
+						particles.push(new Particle(tanks[0].location.x + Math.cos(tanks[0].angle) * TANK_RADIUS * 2, tanks[0].location.y + Math.sin(tanks[0].angle) * TANK_RADIUS * 2, tanks[0].angle + (Math.random() - .5), PARTICLE_SPEED * Math.random() * 2));
+					}
+				}
+			}
+
+			///Same for the second tank
+			if (keys[NUM_3_KEY]) {
+				tanks[1].speed += TANK_ACCELERATION;
+			}
+			if (keys[NUM_1_KEY]) {
+				tanks[1].angle -= TANK_ROTATION;
+			}
+			if (keys[NUM_2_KEY]) {
+				tanks[1].angle += TANK_ROTATION;
+			}
+			if (keys[NUM_4_KEY]) {
+				if (tanks[1].framesSinceLastShot == 0) {
+					bullets.push(new Bullet(tanks[1].location.x + Math.cos(tanks[1].angle) * TANK_RADIUS * 2, tanks[1].location.y + Math.sin(tanks[1].angle) * TANK_RADIUS * 2, tanks[1].angle, BULLET_SPEED));
+					tanks[1].framesSinceLastShot = TANK_FRAMES_BETWEEN_SHOTS;
+					for (var k = 0; k < 5; k++) {
+						particles.push(new Particle(tanks[1].location.x + Math.cos(tanks[1].angle) * TANK_RADIUS * 2, tanks[1].location.y + Math.sin(tanks[1].angle) * TANK_RADIUS * 2, tanks[1].angle + (Math.random() - .5), PARTICLE_SPEED * Math.random() * 2));
+					}
+				}
+
+			}
+
+			///Update the tanks based on their speed, etc.
+			for (var i = 0; i < tanks.length; i++) {
+				var tank = tanks[i];
+
+				///Frames since the tank last shot.
+				tank.framesSinceLastShot = Math.max(0, tank.framesSinceLastShot - 1);
+
+				///A simple linear friction equation
+				tank.speed -= TANK_SLOW_DOWN;
+
+				//Clamp the tank's speed
+				if (tank.speed > TANK_MAX_SPEED) ///Make sure the tank can't go to fast
+					tank.speed = TANK_MAX_SPEED;
+
+				if (tank.speed < 0) ///Make sure the tank doesn't go backwards.
+					tank.speed = 0;
+
+				///Update the tanks position using speed an direction (radial coordinates)
+				tank.location.x += Math.cos(tank.angle) * tank.speed;
+				tank.location.y += Math.sin(tank.angle) * tank.speed;
+
+				///Check to see if the tank hit the boundaries or any of the obstecles
+				//If so, prevent collisions
+				var hitWall = false;
+				if (tank.location.x < TANK_RADIUS) {
+					tank.location.x = TANK_RADIUS;
+					hitWall = true;
+				}
+				if (tank.location.x > canvas.width - TANK_RADIUS) {
+					tank.location.x = canvas.width - TANK_RADIUS;
+					hitWall = true;
+				}
+				if (tank.location.y < TANK_RADIUS) {
+					tank.location.y = TANK_RADIUS;
+					hitWall = true;
+				}
+				if (tank.location.y > canvas.height - TANK_RADIUS) {
+					tank.location.y = canvas.height - TANK_RADIUS;
+					hitWall = true;
+				}
+
+				//Boundary check
+				for (var j = 0; j < obstacles.length; j++) {
+					if (distance(tank.location, obstacles[j].location) < TANK_RADIUS + OBSTACLE_RADIUS) {
+						hitWall = true;
+						tank.location.x -= Math.cos(tank.angle) * tank.speed * 1.1;
+						tank.location.y -= Math.sin(tank.angle) * tank.speed * 1.1;
+					}
+				}
+
+				//Slow the tank down if there is a collision.
+				if (hitWall)
+					tank.speed /= 3;
+
+			}
+
+
+
+			particles = keptParticles;
+
+			drawCanvas();       ///Draw the canvas
+		}
+
+		///Called whenever the canvas needs to be redrawn
+		function drawCanvas() {
+
+			///Grab the canvas so we can draw on it
+			var ctx = canvas.getContext("2d");      ///Get the canvas context
+
+			///Clear the rectangles
+			ctx.fillStyle = "yellow";
+			ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+			//Draw different things depending on the game state
+			if (!isGameOver) {
+
+				///Draw the health of each tank
+				ctx.fillStyle = "black";
+				ctx.font = "20px Arial";
+				ctx.fillText(tanks[0].health, 8, 15);
+				ctx.fillText(tanks[1].health, 620, 470);
+
+
+				///Draw the particles
+				for (var i = 0; i < particles.length; i++) {
+					var particle = particles[i];
+
+					///Draw the particles as simple circles
+					ctx.beginPath();
+					ctx.arc(particle.location.x, particle.location.y, 1, 0, 2 * Math.PI, false);
+					ctx.fillStyle = 'orange';
+					ctx.fill();
+
+				}
+
+				///Draw the bullets as simple rectangles
+				for (var i = 0; i < bullets.length; i++) {
+					var bullet = bullets[i];
+
+					ctx.fillStyle = 'red';
+					ctx.fillRect(bullet.location.x - 2, bullet.location.y - 2, 4, 4);
+				}
+
+
+
+				///Draw the tanks
+				for (var i = 0; i < tanks.length; i++) {
+					var tank = tanks[i];
+
+
+					//Draw the circular part of the tank
+					ctx.beginPath();
+					ctx.arc(tank.location.x, tank.location.y, TANK_RADIUS, 0, 2 * Math.PI, false);
+					if (i == 0)
+						ctx.fillStyle = 'orange';
+					else if (i == 1)
+						ctx.fillStyle = 'pink';
+					ctx.fill();
+					ctx.lineWidth = .5;
+					ctx.strokeStyle = '#0000ff';
+					ctx.stroke();
+
+					///Draw the tank's turret
+					ctx.beginPath();
+					ctx.moveTo(tank.location.x, tank.location.y);
+					var turretX = tank.location.x + Math.cos(tank.angle) * TURRET_LENGTH;
+					var turretY = tank.location.y + Math.sin(tank.angle) * TURRET_LENGTH;
+					ctx.lineTo(turretX, turretY);
+					ctx.lineWidth = 2;
+					ctx.closePath();
+					ctx.stroke();
+
+				}
+
+				///Draw the obstacles
+				for (var i = 0; i < obstacles.length; i++) {
+					var obstacle = obstacles[i];
+
+
+					ctx.beginPath();
+					ctx.arc(obstacle.location.x, obstacle.location.y, OBSTACLE_RADIUS, 0, 2 * Math.PI, false);
+					ctx.fillStyle = 'black';
+					ctx.fill();
+				}
+
+				///Draw the health of each tanks
+				ctx.font = "20px Arial";
+				ctx.fillStyle = "green";
+
+				ctx.fillText(tanks[0].health, 8, 15);
+				ctx.fillStyle = "blue";
+
+				ctx.fillText(tanks[1].health, 620, 470);
+			}
+			else ///The game is over
+			{
+				//Tell the user that the game is over.
+				ctx.fillStyle = "#ff0000";
+				ctx.font = "14pt Times";
+				ctx.fillText("Troubled Tanks. Refresh to start.", 180, 240);
+			}
+
+		}
+
+		function mouseDown(event) {
+
+		}
+	</script>
+</head>
+
+<body onload="initialBoot()" onkeydown="keyDownListener(event)" onkeyup="keyUpListener(event)">
+
+	<div id="contentPane" style="width:750px; margin-left:auto; margin-right:auto;background-color:rgba(0,0,0,0);">
+
+		<div style="opacity:0;">
+			<img src="spacer.png" />
+		</div>
+
+
+		<div style="width:700px;background:#DDDDDD;margin-left:auto;margin-right:auto;box-shadow:rgb(153,153,153) 0px 2px 4px 0px;border-bottom-left-radius:4px;border-top-left-radius:4px;border-bottom-right-radius:4px;border-top-right-radius:4px;">
+
+			<div style="opacity:0;height:0px;">
+				<img src="spacer.png" />
+			</div>
+
+			<div style="width:550px;margin-left:auto;margin-right:auto;background:#c1ebff;border-bottom-left-radius:4px;border-top-left-radius:4px;border-bottom-right-radius:4px;border-top-right-radius:4px;">
+				<h2 style="text-align:center;">The Troubled Tanks Game</h2>
+			</div>
+
+			<div id="TextUpdate" style="width:500px;margin-left:auto;margin-right:auto;text-align:center;">
+				<img src="spacer.png" />
+			</div>
+
+			<div style="width:650px;margin-left:auto;margin-right:auto;margin-top:0px;margin-bottom:0px;padding:0px;">
+				<canvas style="width:650px;margin-left:auto;margin-right:auto" id="canv" onmousedown="mouseDown(event)"></canvas>
+			</div>
+
+			<div style="opacity:0;height:15px;">
+				<img src="spacer.png" />
+			</div>
+
+		</div>
+
+
+	</div>
+	<div style="clear:both">
+		<img src="spacer.png" />
+	</div>
+	</div>
+
+	<div style="text-align:center;">Created by me. Copyright February 2016.
+		<br />
+	</div>
+	</div>
+
+
+</body>
+
+</html>
