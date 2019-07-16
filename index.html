@@ -4,14 +4,20 @@
 
 <head>
 	<meta charset="utf-8" />
-	<title>Troubled Tanks statically hosted</title>
+	<title>Troubled Tanks</title>
 	<style>
 		body {
 			margin: 0px;
-			background-color: #c1ebff;
+			background-color: #000000;
 			font-family: Helvetica, sans-serif;
+			color: #ffffff;
+		}
+		a{
+			color:#ffffff;
 		}
 	</style>
+	<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.6.3/css/all.css" integrity="sha384-UHRtZLI+pbxtHCWp1t77Bi1L4ZtiqrqD80Kn4Z8NTSRyMA2Fd33n5dQ8lWUE00s/" crossorigin="anonymous">
+
 
 	<script type="text/javascript">
 
@@ -29,9 +35,7 @@
 
 		isGameOver = false;	///Is the game over
 
-		playerOneScore = 0;
-		playerTwoScore = 0;
-
+		
 		TANK_RADIUS = 20; ///How wide is the tank
 		TURRET_LENGTH = 30; ///How long is the tank turretX
 		TANK_MAX_SPEED = 3; ///How fast can the tank go?
@@ -48,31 +52,27 @@
 
 		PARTICLE_SPEED = 7;
 
-		/*LEFT_ARROW_KEY = 72; //h
-		UP_ARROW_KEY = 67; //c
-		RIGHT_ARROW_KEY = 78; //n
-		DOWN_ARROW_KEY = 84; //t*/
+		
+		p2Left = "ArrowLeft";
+		p2Up = "ArrowUp";
+		p2Right = "ArrowRight"
+		p2Down = "ArrowDown";
 
-		LEFT_ARROW_KEY = 74;
-		UP_ARROW_KEY = 73;
-		RIGHT_ARROW_KEY = 76
-		DOWN_ARROW_KEY = 75;
-
-		NUM_1_KEY = 49;
-		NUM_2_KEY = 50;
-		NUM_3_KEY = 51;
-		NUM_4_KEY = 52;
+		p1Left = "a";
+		p1Right = "d";
+		p1Down = "s";
+		p1Up = "w";
 
 		// Keyboard setting. From http://codepen.io/pboest/pen/qChba
 
 		var keys = [];
 
 		function keyDownListener(e) {
-			keys[e.keyCode] = true;
+			keys[e.key] = true;
 		}
 
 		function keyUpListener(e) {
-			keys[e.keyCode] = false;
+			keys[e.key] = false;
 		}
 
 		///---------------------Classes
@@ -105,7 +105,7 @@
 		function Bullet(x, y, angle, speed) {
 			this.location = new Point(x, y);
 			this.angle = angle;
-			this.speed = speed
+			this.speed = speed;
 		}
 
 		//A class to store obstacle data
@@ -152,10 +152,7 @@
 
 				//Update the status text
 				document.getElementById("TextUpdate").innerText =
-					"Seconds Alive: " + (f) +
-					" seconds. Score Player 1 " +
-					playerOneScore + ", Score Player 2 " +
-					playerTwoScore;   ///Update the elapsed time
+					"Seconds Alive: " + (f) + ". P1 moves with wsda, P2 moves with arrows"
 
 				//Update the global model
 				update();
@@ -262,16 +259,16 @@
 
 
 			///Check for user input
-			if (keys[UP_ARROW_KEY]) {
+			if (keys[p2Up]) {
 				tanks[0].speed += TANK_ACCELERATION;
 			}
-			if (keys[LEFT_ARROW_KEY]) {
+			if (keys[p2Left]) {
 				tanks[0].angle -= TANK_ROTATION;
 			}
-			if (keys[RIGHT_ARROW_KEY]) {
+			if (keys[p2Right]) {
 				tanks[0].angle += TANK_ROTATION;
 			}
-			if (keys[DOWN_ARROW_KEY]) {
+			if (keys[p2Down]) {
 				///The user wants to fire. See if it's been long enough
 				if (tanks[0].framesSinceLastShot == 0) {
 					bullets.push(new Bullet(tanks[0].location.x + Math.cos(tanks[0].angle) * TANK_RADIUS * 2, tanks[0].location.y + Math.sin(tanks[0].angle) * TANK_RADIUS * 2, tanks[0].angle, BULLET_SPEED));
@@ -285,16 +282,16 @@
 			}
 
 			///Same for the second tank
-			if (keys[NUM_3_KEY]) {
+			if (keys[p1Up]) {
 				tanks[1].speed += TANK_ACCELERATION;
 			}
-			if (keys[NUM_1_KEY]) {
+			if (keys[p1Left]) {
 				tanks[1].angle -= TANK_ROTATION;
 			}
-			if (keys[NUM_2_KEY]) {
+			if (keys[p1Right]) {
 				tanks[1].angle += TANK_ROTATION;
 			}
-			if (keys[NUM_4_KEY]) {
+			if (keys[p1Down]) {
 				if (tanks[1].framesSinceLastShot == 0) {
 					bullets.push(new Bullet(tanks[1].location.x + Math.cos(tanks[1].angle) * TANK_RADIUS * 2, tanks[1].location.y + Math.sin(tanks[1].angle) * TANK_RADIUS * 2, tanks[1].angle, BULLET_SPEED));
 					tanks[1].framesSinceLastShot = TANK_FRAMES_BETWEEN_SHOTS;
@@ -375,17 +372,13 @@
 			var ctx = canvas.getContext("2d");      ///Get the canvas context
 
 			///Clear the rectangles
-			ctx.fillStyle = "yellow";
+			ctx.fillStyle = "white";
 			ctx.fillRect(0, 0, canvas.width, canvas.height);
 
 			//Draw different things depending on the game state
 			if (!isGameOver) {
 
-				///Draw the health of each tank
-				ctx.fillStyle = "black";
-				ctx.font = "20px Arial";
-				ctx.fillText(tanks[0].health, 8, 15);
-				ctx.fillText(tanks[1].health, 620, 470);
+			
 
 
 				///Draw the particles
@@ -419,12 +412,12 @@
 					ctx.beginPath();
 					ctx.arc(tank.location.x, tank.location.y, TANK_RADIUS, 0, 2 * Math.PI, false);
 					if (i == 0)
-						ctx.fillStyle = 'orange';
+						ctx.fillStyle = '#D71920';
 					else if (i == 1)
-						ctx.fillStyle = 'pink';
+						ctx.fillStyle = '#BCBBBA';
 					ctx.fill();
 					ctx.lineWidth = .5;
-					ctx.strokeStyle = '#0000ff';
+					ctx.strokeStyle = '#000000';
 					ctx.stroke();
 
 					///Draw the tank's turret
@@ -450,14 +443,8 @@
 					ctx.fill();
 				}
 
-				///Draw the health of each tanks
-				ctx.font = "20px Arial";
-				ctx.fillStyle = "green";
-
-				ctx.fillText(tanks[0].health, 8, 15);
-				ctx.fillStyle = "blue";
-
-				ctx.fillText(tanks[1].health, 620, 470);
+				
+				
 			}
 			else ///The game is over
 			{
@@ -484,13 +471,13 @@
 		</div>
 
 
-		<div style="width:700px;background:#DDDDDD;margin-left:auto;margin-right:auto;box-shadow:rgb(153,153,153) 0px 2px 4px 0px;border-bottom-left-radius:4px;border-top-left-radius:4px;border-bottom-right-radius:4px;border-top-right-radius:4px;">
+		<div style="width:700px;background:#636568;margin-left:auto;margin-right:auto;box-shadow:rgb(153,153,153) 0px 2px 4px 0px;border-bottom-left-radius:4px;border-top-left-radius:4px;border-bottom-right-radius:4px;border-top-right-radius:4px;">
 
 			<div style="opacity:0;height:0px;">
 				<img src="spacer.png" />
 			</div>
 
-			<div style="width:550px;margin-left:auto;margin-right:auto;background:#c1ebff;border-bottom-left-radius:4px;border-top-left-radius:4px;border-bottom-right-radius:4px;border-top-right-radius:4px;">
+			<div style="width:550px;margin-left:auto;margin-right:auto;background:#000000;border-bottom-left-radius:4px;border-top-left-radius:4px;border-bottom-right-radius:4px;border-top-right-radius:4px;">
 				<h2 style="text-align:center;">The Troubled Tanks Game</h2>
 			</div>
 
@@ -510,12 +497,10 @@
 
 
 	</div>
-	<div style="clear:both">
-		<img src="spacer.png" />
-	</div>
+	
 	</div>
 
-	<div style="text-align:center;">Created by me. Copyright February 2016.
+	<div style="text-align:center;margin-top:1rem;">Code on <a href="https://github.com/bricksSeeds/html.game.Tanks"><i class="fab fa-github"></i></a>, <i class="fas fa-balance-scale"></i> MIT 2019 @<a href="https://github.com/bricksphd">bricksphd</a>
 		<br />
 	</div>
 	</div>
