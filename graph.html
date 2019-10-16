@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <title>Troubled Tanks</title>
+  <style>
+    body {
+      margin: 0px;
+      background-color: #000000;
+      font-family: Helvetica, sans-serif;
+      color: #ffffff;
+    }
+
+    a {
+      color: #ffffff;
+    }
+  </style>
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.6.3/css/all.css"
+    integrity="sha384-UHRtZLI+pbxtHCWp1t77Bi1L4ZtiqrqD80Kn4Z8NTSRyMA2Fd33n5dQ8lWUE00s/" crossorigin="anonymous">
+
+
+  <script type="text/javascript">
+
+    ///Global variables
+
+    timerID = 0;            ///The timer
+
+    startTime = new Date(); ///When did the game start?
+
+
+    graph = {
+      nodes: [{ name: "a", x: 0, y: 0 }, { name: "b", x: .1, y: .1 }, { name: "c", x: .2, y: .2 }, { name: "d", x: .3, y: .4 }, {name:"e", x:-.1, y:-.1}],
+      edges: [{ start: "a", end: "b" }, { start: "a", end: "c" }, { start: "b", end: "d" }, {start:"a",end:"e"}, {start:"c", end:"e"}]
+    }
+
+    tanks = new Array();	///A list of the tanks
+    particles = new Array();	///A list of the particles. These don't affect game play but are for aesthetics only.
+    bullets = new Array(); ///A list of the bullets
+    obstacles = new Array(); ///A list of the obstacles
+
+
+    isGameOver = false;	///Is the game over
+
+
+    TANK_RADIUS = 20; ///How wide is the tank
+    TURRET_LENGTH = 30; ///How long is the tank turretX
+    TANK_MAX_SPEED = 3; ///How fast can the tank go?
+    TANK_SLOW_DOWN = .05; ///How much does the tank slow down if it's not accelerating?
+    TANK_ACCELERATION = 2; ///How fast does the tank speed up if we push the acceleration key?
+    TANK_HEALTH = 1;
+    TANK_ROTATION = .1; ///How fast can a tank turn?
+    TANK_FRAMES_BETWEEN_SHOTS = 15;
+
+    COUNT_OBSTACLES = 20;
+    OBSTACLE_RADIUS = 5;
+
+    BULLET_SPEED = 15;
+
+    PARTICLE_SPEED = 7;
+
+
+    p2Left = "ArrowLeft";
+    p2Up = "ArrowUp";
+    p2Right = "ArrowRight"
+    p2Down = "ArrowDown";
+
+    p1Left = "a";
+    p1Right = "d";
+    p1Down = "s";
+    p1Up = "w";
+
+    // Keyboard setting. From http://codepen.io/pboest/pen/qChba
+
+    var keys = [];
+
+    function keyDownListener(e) {
+      keys[e.key] = true;
+    }
+
+    function keyUpListener(e) {
+      keys[e.key] = false;
+    }
+
+    ///---------------------Classes
+
+    ///A point class to store two doubles
+    function Point(x, y) {
+      this.x = x;
+      this.y = y;
+    }
+
+    ///A class to store tank data
+    function Tank(x, y, angle) {
+
+      this.location = new Point(x, y);
+      this.angle = angle;
+      this.speed = 0;
+      this.health = TANK_HEALTH;
+      this.framesSinceLastShot = 0;
+    }
+
+    ///A class to store aesthetic data
+    function Particle(x, y, angle, speed) {
+      this.startTime = new Date();
+      this.location = new Point(x, y);
+      this.angle = angle;
+      this.speed = speed;
+    }
+
+    ///A class to store bullet data
+    function Bullet(x, y, angle, speed) {
+      this.location = new Point(x, y);
+      this.angle = angle;
+      this.speed = speed;
+    }
+
+    //A class to store obstacle data
+    function Obstacle(x, y) {
+      this.location = new Point(x, y);
+      this.radius = OBSTACLE_RADIUS;
+    }
+
+    ///-------------------------Methods
+
+    ///This gets called once when the page is completetly loaded.
+    ///Think main()
+    function initialBoot() {
+
+      tanks.push(new Tank(25, 25, 0)); ///Add the first tank looking right
+      tanks.push(new Tank(615, 455, Math.PI)); ///Add the second tank looking left
+
+      ///Randomly create obstacles
+      for (var i = 0; i < COUNT_OBSTACLES; i++) {
+        obstacles.push(new Obstacle(Math.random() * 440 + 100, Math.random() * 280 + 100));
+
+      }
+
+      ///Update the model
+      update();
+
+      ///Start a timer
+      timerID = setTimeout(tick, 33);    								///Initialize the timer
+      startTimeMilliseconds = startTime.getTime();     	///Get the start time in milliseconds
+    }
+
+    ///This gets called evertime the timer ticks
+    function tick() {
+
+      ///Respond differently based on the game state
+      if (!isGameOver) {
+        timerID = setTimeout(tick, 33);    ///Restart the timer
+
+        var currentTime = new Date();       ///Get the current time
+        var now = currentTime.getTime();    ///Get the current time in milliseconds
+
+        var f = Math.floor((now - startTimeMilliseconds) / 1000);   ///Figure out how many full seconds have elapsed
+
+
+        //Update the status text
+        document.getElementById("TextUpdate").innerText =
+          "Seconds Alive: " + (f) + ". P1 moves with wsda, P2 moves with arrows"
+
+        //Update the global model
+        update();
+
+        //Check to see if after the end of the update, there are still living tanks
+        if (tanks[0].health <= 0 || tanks[1].health <= 0) {
+          isGameOver = true;
+          if (tanks[0].health <= 0)
+            alert("Player 2 (Blue) won");
+          else
+            alert("Player 1 (Green) won");
+        }
+      }
+      else
+        drawCanvas();
+    }
+
+    //Helper function for distance
+    function distance(one, two) {
+      return Math.sqrt((one.x - two.x) * (one.x - two.x) + (one.y - two.y) * (one.y - two.y));
+    }
+
+    ///This gets called whenever the window size changes and the 
+    ///canvas neends to adjust.
+    ///This also adjusts the content pane
+    function update() {
+
+      ///Make sure everything is the right size
+      canvas = document.getElementById("canv");   ///Get the canvas object
+      canvas.width = 640;
+      canvas.height = 480;
+
+      //Particles that will be kept alive
+      let changes = [];
+      for (let i = 0; i < graph.nodes.length; i++) {
+        let node = graph.nodes[i];
+        let changeX = 0;
+        let changeY = 0;
+        for (let j = 0; j < graph.nodes.length; j++) {
+          let otherNode = graph.nodes[j];
+          if(otherNode == node) continue;
+          let deltaX = node.x - otherNode.x;
+          let deltaY = node.y - otherNode.y;
+          let distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+          if(distance > 5) continue;
+          let repulsion = 1/(distance + .0001);
+          changeX += deltaX * repulsion * .01;
+          changeY += deltaY * repulsion * .01;
+
+          if(node.x< 1){
+            changeX += (1 - changeX) * .001;
+          }
+         
+        }
+        for (let j = 0; j < graph.edges.length; j++) {
+          let edge = graph.edges[j];
+          if(edge.start != node.name && edge.end != node.name) continue;
+          let start = graph.nodes.filter(i => i.name == edge.start)[0];
+          let end = graph.nodes.filter(i => i.name == edge.end)[0];
+          
+
+          let otherNode;
+          if(node == start)
+            otherNode = end;
+          else
+            otherNode = start;
+
+          let deltaX = node.x - otherNode.x;
+          let deltaY = node.y - otherNode.y;
+          let distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+          let repulsion = 1/(distance + .0001);
+          changeX -= deltaX * repulsion * .000015;
+          changeY -= deltaY * repulsion * .000015;
+
+        }
+        changes.push({changeX, changeY})
+
+      }
+
+      for (let i = 0; i < graph.nodes.length; i++) {
+        let node = graph.nodes[i];
+        node.x += changes[i].changeX;
+        node.y += changes[i].changeY;
+
+        if(node.x <= 0){
+          node.x = 0;
+        }
+      }
+
+
+      drawCanvas();       ///Draw the canvas
+    }
+
+    ///Called whenever the canvas needs to be redrawn
+    function drawCanvas() {
+
+      ///Grab the canvas so we can draw on it
+      var ctx = canvas.getContext("2d");      ///Get the canvas context
+
+      ///Clear the rectangles
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.translate(200, 200);
+      ctx.scale(20, 20);
+
+      
+      for (let i = 0; i < graph.edges.length; i++) {
+        let edge = graph.edges[i];
+        ctx.strokeStyle = "blue";
+        ctx.beginPath();
+        let start = graph.nodes.filter(i => i.name == edge.start)[0];
+        let end = graph.nodes.filter(i => i.name == edge.end)[0];
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(end.x, end.y);
+        ctx.stroke();
+      }
+
+      for (let i = 0; i < graph.nodes.length; i++) {
+        let node = graph.nodes[i];
+        ctx.fillStyle = "red";
+        ctx.fillRect(node.x, node.y, 1, 1);
+      }
+
+
+    }
+
+    function mouseDown(event) {
+
+    }
+  </script>
+</head>
+
+<body onload="initialBoot()" onkeydown="keyDownListener(event)" onkeyup="keyUpListener(event)">
+
+  <div id="contentPane" style="width:750px; margin-left:auto; margin-right:auto;background-color:rgba(0,0,0,0);">
+
+    <div style="opacity:0;">
+      <img src="spacer.png" />
+    </div>
+
+
+    <div
+      style="width:700px;background:#636568;margin-left:auto;margin-right:auto;box-shadow:rgb(153,153,153) 0px 2px 4px 0px;border-bottom-left-radius:4px;border-top-left-radius:4px;border-bottom-right-radius:4px;border-top-right-radius:4px;">
+
+      <div style="opacity:0;height:0px;">
+        <img src="spacer.png" />
+      </div>
+
+      <div
+        style="width:550px;margin-left:auto;margin-right:auto;background:#000000;border-bottom-left-radius:4px;border-top-left-radius:4px;border-bottom-right-radius:4px;border-top-right-radius:4px;">
+        <h2 style="text-align:center;">The Troubled Tanks Game</h2>
+      </div>
+
+      <div id="TextUpdate" style="width:500px;margin-left:auto;margin-right:auto;text-align:center;">
+        <img src="spacer.png" />
+      </div>
+
+      <div style="width:650px;margin-left:auto;margin-right:auto;margin-top:0px;margin-bottom:0px;padding:0px;">
+        <canvas style="width:650px;margin-left:auto;margin-right:auto" id="canv"
+          onmousedown="mouseDown(event)"></canvas>
+      </div>
+
+      <div style="opacity:0;height:15px;">
+        <img src="spacer.png" />
+      </div>
+
+    </div>
+
+
+  </div>
+
+  </div>
+
+  <div style="text-align:center;margin-top:1rem;">Code on <a href="https://github.com/bricksSeeds/html.game.Tanks"><i
+        class="fab fa-github"></i></a>, <i class="fas fa-balance-scale"></i> MIT 2019 @<a
+      href="https://github.com/bricksphd">bricksphd</a>
+    <br />
+  </div>
+  </div>
+
+
+</body>
+
+</html>
